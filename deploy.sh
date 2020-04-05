@@ -2,10 +2,10 @@
 #
 # Tools for deploying our release to github
 #
-# Usage: ./deploy.sh [--debug] deploy [-n] [-r REMOTE_REPOS] [--replace] [-u GITHUB_USER] [RELEASE_VERSION]
+# Usage: ./deploy.sh [--debug] deploy [--no-upload] [-n] [-r REMOTE_REPOS] [--replace] [-u GITHUB_USER] [RELEASE_VERSION]
 #        ./deploy.sh [--debug] build [RELEASE_VERSION]
 #        ./deploy.sh [--debug] delete RELEASE_VERSION
-#        ./deploy.sh [--debug] init
+#        ./deploy.sh [--debug] init [-i]
 #
 # Description:
 #   deploy.sh is a wrapper arroung gothub to build and deploy a github release through
@@ -18,6 +18,8 @@
 #                        will be deleted first.
 #   -u GITHUB_USER       force this GITHUB_USER.
 #   --debug              output debug information.
+#   -i                   Ingore existing file during init. Template are skipped.
+#   --no-upload          Don't perform binaries upload (test for speedup).
 #
 # Arguments:
 #   RELEASE_VERSION      a git tag, or current for the local modified version
@@ -36,12 +38,13 @@
 
 DEPLOYMENT_FILE=deployment.yml
 # change GITHUB_USER + GITHUB_REPO to change repository, it is for building API URL
-GITHUB_USER=opensource-expert
-GITHUB_REPO=ovh-cli-go
+# var can be exported from your env
+GITHUB_USER=${GITHUB_USER:-empty}
+GITHUB_REPO=${GITHUB_REPO:-empty}
 TAG="$(cat VERSION)"
 BUILD_DEST_DIR=build
 TMP_DIR=/tmp
-# this flags will be added to -ldflags
+# RELEASE_LDFLAGS will be added to -ldflags
 # See: go tool link -h
 # -s
 #  Omit the symbol table and debug information
@@ -301,8 +304,8 @@ show_release_data()
   local repository=$(git remote -v | grep $ARGS_REMOTE_REPOS | grep push | head -1)
 
   cat << EOT
-GITHUB_REPO: $GITHUB_REPO
 GITHUB_USER: $GITHUB_USER
+GITHUB_REPO: $GITHUB_REPO
 GITHUB_TOKEN: $GITHUB_TOKEN
 build_dir: $BUILD_DEST_DIR
 repository: $repository
@@ -385,7 +388,11 @@ main_deploy()
       echo "creating new release: $release_version"
       create_release $release_version "$name" "$description"
     fi
-    upload_binaries $release_version $UPLOAD_FILES
+    if $ARGS_no_upload ; then
+      echo "upload binaries skipped."
+    else
+      upload_binaries $release_version $UPLOAD_FILES
+    fi
   fi
 }
 
@@ -429,7 +436,58 @@ check_build_dir()
 # TODO: fetch dependancies? gothub docopts gox govvv go.yml
 deploy_init()
 {
-  local dest=${1:-deployment.yml}
+  local files="deployment.yml get_ldflags.sh"
+  local f ret
+  ret=0
+  for f in $files
+  do
+    if [[ -e $f ]] ; then
+      if $ARGS_i ; then
+        echo "file exists: '$f' ignored"
+      else
+        error "destination file exists: '$f' remove it first"
+        return 1
+      fi
+    else
+      create_template "$f"
+      ret=$?
+      check_file_initilized $ret "$f"
+    fi
+  done
+
+  return $ret
+}
+
+check_file_initilized()
+{
+  local ret=$1
+  local fname="$2"
+  if [[ $ret -eq 0 ]] ; then
+    echo "'$fname' created OK"
+  else
+    error "something goes wrong while creating '$fname'"
+  fi
+}
+
+create_template()
+{
+  case $1 in
+    deployment.yml)
+      create_deployment_yml $1
+      ;;
+    get_ldflags.sh)
+      create_get_ldflags $1
+      ;;
+    *)
+      error "unknown template '$1'"
+      return 1
+      ;;
+  esac
+}
+
+create_deployment_yml()
+{
+  local dest=$1
   local template="$(cat << END
 ---
 # deploy.sh template - produced by deploy.sh init $(date "+%Y-%m-%d %H:%M:%S")
@@ -441,9 +499,11 @@ build:
   - linux/amd64
   - linux/arm
   - windows/amd64
+
 target: name_of_the_binary_to_be_built
+
+# yaml keys must match the git tag
 releases:
-  # yaml keys must match the git tag
   v0.1:
     name: "ovh-cli for shell v0.1"
     description: |
@@ -458,20 +518,49 @@ releases:
       it doesn't have to be yaml formated thought.
 END
 )"
-  if [[ -e $dest ]] ; then
-    error "destination file exists: '$dest' remove it first"
-    return 1
-  fi
 
   echo "$template" > $dest
   local ret=$?
-  if [[ $ret -eq 0 ]] ; then
-    echo "'$dest' created OK"
-  else
-    error "something goes wrong while creating '$dest'"
-  fi
-
   return $ret
+}
+
+create_get_ldflags()
+{
+  local dest="$1"
+  cat << END > "$dest"
+#!/usr/bin/env bash
+#
+# Usage: ./get_ldflags.sh [BUILD_FLAGS]
+#
+# This file has been created by: deploy.sh init -- $(date "+%Y-%m-%d %H:%M:%S")
+#
+# This script is an helper for both Makefile + deploy.sh
+#
+END
+
+  cat << 'END' >> "$dest"
+# You can reuse it in your Makefile:
+# BUILD_FLAGS=$(shell ./get_ldflags.sh)
+# your_target: your_target.go Makefile ${OTHER_DEP}
+# 	go build -o $@ -ldflags "${BUILD_FLAGS} ${LDFLAGS}"
+END
+
+  cat << 'END' >> "$dest"
+
+set -eu
+build_flags=${1:-}
+if [[ -z $build_flags ]]; then
+  # govvv define main.Version with the contents of ./VERSION file, if exists
+  build_flags=$(govvv -flags)
+fi
+
+# you can add more flags here:
+build_flags+=" -X 'main.GoBuildVersion=$(go version)' -X 'main.ByUser=${USER}'"
+
+# the last command MUST display all build_flags
+echo "$build_flags"
+END
+  chmod a+x "$dest"
 }
 
 # ###################################################################### main select option
@@ -491,7 +580,6 @@ if [[ $0 == $BASH_SOURCE ]] ; then
 
   # early argument action, no deep action required
   if $ARGS_init ; then
-    # TODO: create get_ldflags.sh ?
     deploy_init
     exit $?
   fi
@@ -511,6 +599,27 @@ if [[ $0 == $BASH_SOURCE ]] ; then
     echo "fetch last tag from git..."
     TAG=$(git describe --abbrev=0)
   fi
+
+  if [[ $GITHUB_USER == 'empty' && $GITHUB_REPO == 'empty' ]] ; then
+    GITHUB_REPO=""
+    GITHUB_USER=""
+    # try to guess it
+    exports=$(git remote -v | sed -n \
+    -e '/^origin.*fetch/ {
+      s/\(git@github.com:\|https:..github.com.\)//
+      s/origin[ 	]*//
+      s/ (fetch)$//
+      s/\.git$//
+      s/\([^\/]*\)\/\(.*\)/export GITHUB_USER="\1";export GITHUB_REPO="\2"/
+      p
+    }
+    ')
+
+    echo "guessing github API info: $exports"
+    eval "$exports"
+  fi
+
+  fail_if_empty GITHUB_REPO GITHUB_USER
 
   # ============================================================ main switch
   if $ARGS_build ; then
