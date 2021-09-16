@@ -8,7 +8,7 @@
 #        ./deploy.sh [--debug] init [-i]
 #
 # Description:
-#   deploy.sh is a wrapper arroung gothub to build and deploy a github release through
+#   deploy.sh is a wrapper arroung github-release to build and deploy a github release through
 #   github API.
 #
 # Options:
@@ -137,7 +137,7 @@ create_release()
     pre_release='--pre-release'
   fi
 
-  gothub release \
+  github-release release \
       --user $GITHUB_USER \
       --repo $GITHUB_REPO \
       --tag "$release" \
@@ -150,7 +150,7 @@ create_release()
 check_release()
 {
   local release=$1
-  gothub info \
+  github-release info \
       --user $GITHUB_USER \
       --repo $GITHUB_REPO \
       --tag "$release" > /dev/null 2>&1
@@ -159,7 +159,7 @@ check_release()
 delete_release()
 {
   local release=$1
-  gothub delete \
+  github-release delete \
       --user $GITHUB_USER \
       --repo $GITHUB_REPO \
       --tag "$release"
@@ -178,7 +178,7 @@ prepare_upload()
   find $build_dest_dir -type f -a ! -name .\*
 }
 
-# perform the upload to github using gothub
+# perform the upload to github using github-release
 # which can be very slow
 upload_binaries()
 {
@@ -190,7 +190,7 @@ upload_binaries()
   for f in $filenames
   do
     echo "uploading '$f' ..."
-    gothub upload \
+    github-release upload \
         --user $GITHUB_USER \
         --repo $GITHUB_REPO \
         --tag "$release" \
@@ -433,7 +433,7 @@ check_build_dir()
 }
 
 # initialize deployment for deploy.sh
-# TODO: fetch dependancies? gothub docopts gox govvv go.yml
+# TODO: fetch dependancies? github-release docopts gox govvv go.yml
 deploy_init()
 {
   local files="deployment.yml get_ldflags.sh"

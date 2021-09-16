@@ -81,10 +81,10 @@ go get github.com/ahmetb/govvv
 
 ### github release uploader
 
-Releases are published to github releases using github API with [gothub](https://github.com/itchio/gothub)
+Releases are published to github releases using github API with [github-release](https://github.com/github-release/github-release)
 
 ```
-go get github.com/itchio/gothub
+go get github.com/github-release/github-release
 ```
 
 ### github API token
