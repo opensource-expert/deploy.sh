@@ -60,7 +60,7 @@ Go for the details:
 A shell command-line parser for making beautiful CLI with ease
 
 ```
-go get github.com/docopt/docopts
+go install github.com/docopt/docopts
 ```
 
 ### gox
@@ -68,7 +68,7 @@ go get github.com/docopt/docopts
 Cross-compiled binaries are built with [gox](https://github.com/mitchellh/gox)
 
 ```
-go get github.com/mitchellh/gox
+go install github.com/mitchellh/gox
 ```
 
 ### govvv
@@ -76,7 +76,7 @@ go get github.com/mitchellh/gox
 Version are embedded at compile time in Go with [govvv](https://github.com/ahmetb/govvv)
 
 ```
-go get github.com/ahmetb/govvv
+go install github.com/ahmetb/govvv
 ```
 
 ### github release uploader
@@ -84,7 +84,7 @@ go get github.com/ahmetb/govvv
 Releases are published to github releases using github API with [github-release](https://github.com/github-release/github-release)
 
 ```
-go get github.com/github-release/github-release
+go install github.com/github-release/github-release
 ```
 
 ### github API token
@@ -115,14 +115,12 @@ git push origin "$(cat VERSION)"
 
 ### yaml command-line tool
 
-**Experimental**
-
-See: http://mikefarah.github.io/yq/
+See: https://mikefarah.gitbook.io/yq/
 
 For extracting yaml data from `deployment.yml`
 
 ```
-go get gopkg.in/mikefarah/yq.v2
+go install github.com/mikefarah/yq/v4@latest
 ```
 
 ### build golang project binaries
@@ -130,6 +128,8 @@ go get gopkg.in/mikefarah/yq.v2
 Our script uses `docopts` for parsing our command line option.
 
 ```
+go get github.com/docopt/docopts
+cd $GOPATH/src/github.com/docopt/docopts
 make
 ```
 

@@ -9,11 +9,11 @@ DOCOPTS=${PREFIX}/bin/docopts
 
 # dependancies
 install_builddep:
-	go get github.com/docopt/docopts
-	go get github.com/mitchellh/gox
-	go get github.com/github-release/github-release
-	go get gopkg.in/yaml.v2
-	go get github.com/ahmetb/govvv
+	go install github.com/docopt/docopts
+	go install github.com/mitchellh/gox
+	go install github.com/github-release/github-release
+	go install github.com/mikefarah/yq/v4@latest
+	go install github.com/ahmetb/govvv
 
 ###########################
 

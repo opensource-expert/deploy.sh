@@ -36,7 +36,7 @@
 
 # ============================================================ GLOBALS
 
-DEPLOYMENT_FILE=deployment.yml
+DEPLOYMENT_FILE=${DEPLOYMENT_FILE:-deployment.yml}
 # change GITHUB_USER + GITHUB_REPO to change repository, it is for building API URL
 # var can be exported from your env
 GITHUB_USER=${GITHUB_USER:-empty}
@@ -214,12 +214,11 @@ indent()
 # format as list or space separated list for gox
 get_arch_build_target()
 {
-  local arch_list=$(yq.v2 r $DEPLOYMENT_FILE build | sed -e 's/^- //')
   if [[ $# -eq 1 && $1 == 'gox' ]] ; then
-    # join output and trim
-    tr $'\n' ' ' <<< "$arch_list" | sed -e 's/ $//'
+    # join output
+    yq '.build|join(" ")' $DEPLOYMENT_FILE
   else
-    echo "$arch_list"
+    yq '.build[]' $DEPLOYMENT_FILE
   fi
 }
 
@@ -290,9 +289,7 @@ build_binaries()
 # Call: yaml_keys FILE_YAML KEY
 yaml_keys()
 {
-  # yq seems to young software, quick fix to get keys
-  # https://github.com/mikefarah/yq/issues/20
-  yq.v2 r "$1" "$2" | sed -n -e '/^\([^ ]\([^:]\+\)\?\):/  s/:.*// p'
+  yq "(.$2| keys)[]" "$1"
 }
 
 show_release_data()
@@ -350,10 +347,9 @@ main_deploy()
     echo "using current release in VERSION: $release_version"
   fi
 
-  local description=$(yq.v2 r $DEPLOYMENT_FILE "releases[$release_version].description")
-  local name=$(yq.v2 r $DEPLOYMENT_FILE "releases[$release_version].name")
-  local name=$(yq.v2 r $DEPLOYMENT_FILE "releases[$release_version].name")
-  local target=$(yq.v2 r $DEPLOYMENT_FILE "target")
+  local description=$(yq ".releases[\"$release_version\"].description" $DEPLOYMENT_FILE )
+  local name=$(yq ".releases[\"$release_version\"].name" $DEPLOYMENT_FILE)
+  local target=$(yq ".target" $DEPLOYMENT_FILE)
 
   # will stop the execution (as set -e is enabled)
   check_name_description $release_version "$name" "$description"
@@ -619,12 +615,11 @@ if [[ $0 == $BASH_SOURCE ]] ; then
     eval "$exports"
   fi
 
-  fail_if_empty GITHUB_REPO GITHUB_USER
 
   # ============================================================ main switch
   if $ARGS_build ; then
     check_build_dir $BUILD_DEST_DIR
-    target=$(yq.v2 r $DEPLOYMENT_FILE "target")
+    target=$(yq ".target" $DEPLOYMENT_FILE)
     echo "build only ..."
     echo "dest build dir: $BUILD_DEST_DIR/"
     echo "target: '$target'"
@@ -633,9 +628,11 @@ if [[ $0 == $BASH_SOURCE ]] ; then
     ls -lh $BUILD_DEST_DIR
     exit 0
   elif $ARGS_deploy ; then
+    fail_if_empty GITHUB_REPO GITHUB_USER
     check_build_dir $BUILD_DEST_DIR
     main_deploy $TAG
   elif $ARGS_delete ; then
+    fail_if_empty GITHUB_REPO GITHUB_USER
     echo "deleting release $GITHUB_USER/$GITHUB_REPO: $TAG"
     delete_release $TAG
   else
